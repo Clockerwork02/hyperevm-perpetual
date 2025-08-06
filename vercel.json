@@ -1,12 +1,6 @@
 {
   "name": "hyperevm-perpetual",
   "version": 2,
-  "builds": [
-    {
-      "src": "index.html",
-      "use": "@vercel/static"
-    }
-  ],
   "routes": [
     {
       "src": "/arena_data.json",
@@ -16,10 +10,5 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-  ],
-  "functions": {
-    "index.html": {
-      "includeFiles": "arena_data.json"
-    }
-  }
+  ]
 }
