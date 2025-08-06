@@ -17,24 +17,33 @@ A professional token trading platform exclusively for the HyperEVM ecosystem (Ch
 
 ## Contract Information
 
-- **Contract Address**: `0x14AaE885A4c81605a288e9379b966e72d7072b6a`
+- **Contract Address**: `0xf96dd9f99c9bb2b40fbdc17e0ede7c3bfe50656c`
 - **Network**: HyperEVM Mainnet (Chain ID: 999)
-- **Explorer**: [View on HyperEVM Scan](https://hyperevmscan.io/address/0x14AaE885A4c81605a288e9379b966e72d7072b6a)
+- **Explorer**: [View on HyperEVM Scan](https://hyperevmscan.io/address/0xf96dd9f99c9bb2b40fbdc17e0ede7c3bfe50656c)
 
 ## Technology Stack
 
 - **Frontend**: React 18 with vanilla JavaScript
 - **Styling**: Tailwind CSS
 - **Blockchain**: Web3.js with MetaMask integration
-- **Smart Contracts**: Solidity on HyperEVM
+- **Smart Contracts**: Solidity on HyperEVM (`HyperEVMPerpetual.sol`)
 - **Data Sources**: DexScreener API for authentic token data
+- **Deployment**: Vercel with optimized static configuration
 
 ## Getting Started
 
 1. Clone the repository
-2. Open `index.html` in a web browser
+2. Deploy to Vercel or serve `index.html` locally
 3. Connect your MetaMask wallet to HyperEVM
 4. Start trading HYPE tokens with leverage
+
+## Contract Details
+
+**Source Code**: `HyperEVMPerpetual.sol`
+**Functions**:
+- `receive()` - Automatically collects HYPE from users
+- `withdrawAllFunds()` - Owner withdraws all accumulated funds
+- `getContractBalance()` - View current contract balance
 
 ## Network Configuration
 
