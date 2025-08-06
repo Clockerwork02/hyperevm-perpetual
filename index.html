@@ -39,64 +39,9 @@
       const [orderType, setOrderType] = useState('market'); // 'market' or 'limit'
       const [limitPrice, setLimitPrice] = useState('');
       
-      // NEW PROFESSIONAL CONTRACT (August 6, 2025)
-      const CONTRACT_ADDRESS = "0xf96dd9f99c9bb2b40fbdc17e0ede7c3bfe50656c"; // New working contract
-      console.log('🔗 Using contract address:', CONTRACT_ADDRESS);
-      const CONTRACT_ABI = [
-        {
-          "inputs": [],
-          "name": "owner",
-          "outputs": [{"internalType": "address", "name": "", "type": "address"}],
-          "stateMutability": "view",
-          "type": "function"
-        },
-        {
-          "inputs": [],
-          "name": "withdrawAllFunds",
-          "outputs": [],
-          "stateMutability": "nonpayable",
-          "type": "function"
-        },
-        {
-          "inputs": [{"internalType": "uint256", "name": "amount", "type": "uint256"}],
-          "name": "withdrawAmount",
-          "outputs": [],
-          "stateMutability": "nonpayable",
-          "type": "function"
-        },
-        {
-          "inputs": [],
-          "name": "getContractBalance",
-          "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-          "stateMutability": "view",
-          "type": "function"
-        },
-        {
-          "stateMutability": "payable",
-          "type": "receive"
-        },
-        {
-          "inputs": [
-            {"internalType": "string", "name": "tokenSymbol", "type": "string"},
-            {"internalType": "uint256", "name": "leverage", "type": "uint256"}
-          ],
-          "name": "buyToken",
-          "outputs": [],
-          "stateMutability": "payable",
-          "type": "function"
-        },
-        {
-          "inputs": [
-            {"internalType": "string", "name": "tokenSymbol", "type": "string"},
-            {"internalType": "uint256", "name": "amount", "type": "uint256"},
-            {"internalType": "uint256", "name": "leverage", "type": "uint256"}
-          ],
-          "name": "sellToken",
-          "outputs": [],
-          "stateMutability": "nonpayable",
-          "type": "function"
-        }
-      ];
+      // WALLET INTEGRATION (August 6, 2025) - Normal wallet, not smart contract
+      const OWNER_WALLET_ADDRESS = "0xf96dd9f99c9bb2b40fbdc17e0ede7c3bfe50656c"; // Owner wallet (ending in 7048)
+      console.log('🔗 Using owner wallet address:', OWNER_WALLET_ADDRESS);
       
       // Load token data
       useEffect(() => {
