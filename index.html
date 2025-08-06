@@ -48,6 +48,10 @@
         try {
           console.log('🔄 Updating real-time prices...');
           
+          // Fetch fresh data from DexScreener API for HyperEVM tokens
+          const dexResponse = await fetch('https://api.dexscreener.com/latest/dex/tokens/0x0000000000000000000000000000000000000000');
+          const dexData = await dexResponse.json();
+          
           // Update existing tokens with fresh prices
           setHyperevmTokens(prevTokens => {
             return prevTokens.map(token => {
@@ -56,7 +60,7 @@
               const basePrice = parseFloat(token.price);
               const newPrice = basePrice * (1 + fluctuation);
               
-              // Update price change percentage (ensure it's a number)
+              // Update price change percentage (ensure it's a number and string)
               const originalChange = parseFloat(token.priceChange24h) || 0;
               const priceChange = ((newPrice - basePrice) / basePrice) * 100;
               const newChange = originalChange + priceChange;
@@ -64,7 +68,7 @@
               return {
                 ...token,
                 price: newPrice.toFixed(6),
-                priceChange24h: newChange.toFixed(2),
+                priceChange24h: String(newChange.toFixed(2)),
                 lastUpdated: Date.now()
               };
             });
@@ -75,7 +79,7 @@
           console.warn('Price update failed, using existing data:', error);
         }
       };
-      
+
       // Load token data
       useEffect(() => {
         const fetchArenaData = async () => {
@@ -348,7 +352,6 @@
           console.error('Error getting balance:', error);
         }
       };
-
 
 
       
@@ -757,8 +760,8 @@
               </div>
               <div className="text-right">
                 <div className="font-mono text-lg">${parseFloat(selectedToken.price).toFixed(6)}</div>
-                <div className={`text-sm ${selectedToken.priceChange24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {selectedToken.priceChange24h >= 0 ? '+' : ''}{selectedToken.priceChange24h?.toFixed(2) || '0.00'}%
+                <div className={`text-sm ${parseFloat(selectedToken.priceChange24h) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {parseFloat(selectedToken.priceChange24h) >= 0 ? '+' : ''}{parseFloat(selectedToken.priceChange24h).toFixed(2) || '0.00'}%
                 </div>
               </div>
             </div>
@@ -794,8 +797,8 @@
                       <div className="text-4xl font-mono text-green-400">${parseFloat(selectedToken.price).toFixed(6)}</div>
                     </div>
                     <div className="text-right">
-                      <div className={`text-lg ${selectedToken.priceChange24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {selectedToken.priceChange24h >= 0 ? '+' : ''}{selectedToken.priceChange24h?.toFixed(2) || '0.00'}%
+                      <div className={`text-lg ${parseFloat(selectedToken.priceChange24h) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {parseFloat(selectedToken.priceChange24h) >= 0 ? '+' : ''}{parseFloat(selectedToken.priceChange24h).toFixed(2) || '0.00'}%
                       </div>
                       <div className="text-sm text-gray-400">24h Change</div>
                     </div>
@@ -1077,8 +1080,8 @@
                       <div className="font-mono text-green-400 font-bold">
                         ${parseFloat(token.price).toFixed(6)}
                       </div>
-                      <div className={`text-sm ${token.priceChange24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {token.priceChange24h >= 0 ? '+' : ''}{token.priceChange24h?.toFixed(2) || '0.00'}%
+                      <div className={`text-sm ${parseFloat(token.priceChange24h) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {parseFloat(token.priceChange24h) >= 0 ? '+' : ''}{parseFloat(token.priceChange24h).toFixed(2) || '0.00'}%
                       </div>
                       <div className="text-xs text-gray-400">
                         {token.marketCap >= 1e9 ? 
