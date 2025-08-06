@@ -56,13 +56,15 @@
               const basePrice = parseFloat(token.price);
               const newPrice = basePrice * (1 + fluctuation);
               
-              // Update price change percentage
+              // Update price change percentage (ensure it's a number)
+              const originalChange = parseFloat(token.priceChange24h) || 0;
               const priceChange = ((newPrice - basePrice) / basePrice) * 100;
+              const newChange = originalChange + priceChange;
               
               return {
                 ...token,
                 price: newPrice.toFixed(6),
-                priceChange24h: priceChange.toFixed(2),
+                priceChange24h: newChange.toFixed(2),
                 lastUpdated: Date.now()
               };
             });
