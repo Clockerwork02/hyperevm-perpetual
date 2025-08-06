@@ -1,0 +1,51 @@
+{
+  "address": "0x14AaE885A4c81605a288e9379b966e72d7072b6a",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "withdraw",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "deposits",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "stateMutability": "payable",
+      "type": "receive"
+    }
+  ],
+  "tx_hash": "3c9985cb7f4c8683d7e3493412572f1664e294ce988448e31e2177ac27225936",
+  "deployer": "0xbFC06dE2711aBEe4d1D9F370CDe09773dDDE7048"
+}
